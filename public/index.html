@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SocketChat - Онлайн Чат</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            width: 100%;
+            max-width: 900px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        #register {
+            text-align: center;
+        }
+
+        #register input {
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            width: 200px;
+            margin-right: 10px;
+        }
+
+        #register button, #send-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background: #00b4db;
+            color: #fff;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        #register button:hover, #send-btn:hover {
+            background: #0083b0;
+        }
+
+        #chat-container {
+            display: none;
+            height: 500px;
+        }
+
+        #chat-header {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            border-radius: 10px 10px 0 0;
+            text-align: center;
+            font-size: 1.2em;
+        }
+
+        #chat {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 0 0 10px 10px;
+            overflow-y: auto;
+            height: 350px;
+        }
+
+        .message {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 10px;
+            border-radius: 8px;
+            margin: 8px 0;
+            word-wrap: break-word;
+        }
+
+        .private {
+            background: rgba(0, 102, 204, 0.3);
+        }
+
+        #users {
+            width: 200px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        #users h3 {
+            margin-bottom: 10px;
+        }
+
+        #input-area {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        #message, #recipient {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        #message::placeholder, #recipient::placeholder {
+            color: #ddd;
+        }
+
+        @media (max-width: 600px) {
+            #users {
+                position: static;
+                width: 100%;
+                margin-bottom: 20px;
+            }
+            .container {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="register">
+            <h2>SocketChat</h2>
+            <input type="text" id="username" placeholder="Введіть ім'я">
+            <button onclick="register()">Увійти</button>
+        </div>
+
+        <div id="chat-container">
+            <div id="chat-header">Онлайн Чат</div>
+            <div id="chat"></div>
+            <div id="input-area">
+                <input type="text" id="message" placeholder="Введіть повідомлення">
+                <input type="text" id="recipient" placeholder="Отримувач (для приватного)">
+                <button id="send-btn" onclick="sendMessage()">Надіслати</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="users">
+        <h3>Користувачі:</h3>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let username;
+
+        function register() {
+            username = document.getElementById('username').value.trim();
+            if (username) {
+                socket.emit('register', username);
+                document.getElementById('register').style.display = 'none';
+                document.getElementById('chat-container').style.display = 'block';
+            }
+        }
+
+        function sendMessage() {
+            const message = document.getElementById('message').value.trim();
+            const recipient = document.getElementById('recipient').value.trim();
+
+            if (message) {
+                if (recipient) {
+                    socket.emit('private-message', { to: recipient, message });
+                } else {
+                    socket.emit('chat-message', message);
+                }
+                document.getElementById('message').value = '';
+                document.getElementById('recipient').value = '';
+            }
+        }
+
+        socket.on('chat-message', (data) => {
+            const chat = document.getElementById('chat');
+            chat.innerHTML += `<div class="message">${data.time} ${data.username}: ${data.message}</div>`;
+            chat.scrollTop = chat.scrollHeight;
+        });
+
+        socket.on('private-message', (data) => {
+            const chat = document.getElementById('chat');
+            chat.innerHTML += `<div class="message private">${data.time} [Приватно від ${data.from}]: ${data.message}</div>`;
+            chat.scrollTop = chat.scrollHeight;
+        });
+
+        socket.on('user-connected', (username) => {
+            document.getElementById('chat').innerHTML += `<div>${username} підключився</div>`;
+        });
+
+        socket.on('user-disconnected', (username) => {
+            document.getElementById('chat').innerHTML += `<div>${username} відключився</div>`;
+        });
+
+        socket.on('update-users', (users) => {
+            document.getElementById('users').innerHTML = '<h3>Користувачі:</h3>' +
+                users.map(user => `<div>${user}</div>`).join('');
+        });
+
+        // Додатковий функціонал для Enter
+        document.getElementById('message').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>
